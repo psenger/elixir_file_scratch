@@ -1,41 +1,16 @@
 defmodule ElixirFileScratch do
   @moduledoc """
-  Documentation for `FileStream`.
+  Documentation for `ElixirFileScratch`.
   """
-
-  @doc """
-  Read a file line by lin ( Streaming )
-
-  ## Examples
-
-      iex> FileReader.read_line_by_line("example.txt")
-
-  """
-  def read_line_by_line(filename) do
-    filename
-    |> File.stream!()
-    |> Enum.each(fn line ->
-      # Process each line (e.g., trim newline and print)
-      IO.puts("Line: #{String.trim_trailing(line)}")
-    end)
-  rescue
-    e in File.Error ->
-      IO.puts("Error opening file: #{e.reason}")
+  defp shout(s) do
+    IO.puts(s)
+    nil
   end
 
-  @doc """
-  Read a file in its entirity ( slurp ).
-
-  # Usage:
-      iex> FileReader.read_all("example.txt")
-
-  """
-  def read_all(filename) do
+  def read_all(filename, processor) do
     case File.read(filename) do
       {:ok, contents} ->
-        IO.puts("File contents: #{contents}")
-        # Return the contents if needed
-        contents
+        processor.(contents)
 
       {:error, reason} ->
         IO.puts("Error reading file: #{reason}")
@@ -43,10 +18,21 @@ defmodule ElixirFileScratch do
     end
   end
 
-  @moduledoc """
-  Documentation for `ElixirFileScratch`.
-  A command-line tool for file operations.
-  """
+  def read_line_by_line(filename, processor) do
+    case File.stat(filename) do
+      {:ok, _stat} ->
+          filename
+          |> File.stream!()
+          |> Enum.map(fn line ->
+            trimmed = String.trim_trailing(line)
+            processor.(trimmed)
+          end)
+
+      {:error, reason} ->
+        IO.puts("Error opening file: #{reason}")
+        nil
+    end
+  end
 
   @doc """
   Main entry point for the escript.
@@ -55,7 +41,10 @@ defmodule ElixirFileScratch do
   def main(args) do
     args
     |> parse_args()
-    |> process()
+    |> case do
+      :help -> print_help()
+      {:file, f} -> process(f)
+    end
   end
 
   defp parse_args(args) do
@@ -72,12 +61,8 @@ defmodule ElixirFileScratch do
     end
   end
 
-  defp process(:help) do
-    print_help()
-  end
-
-  defp process({:file, filename}) do
-    case File.read(filename) do
+  defp process(filename) do
+    case read_all(filename, &shout/1) do
       {:ok, content} ->
         IO.puts("File contents of #{filename}:")
         IO.puts(content)
@@ -86,6 +71,18 @@ defmodule ElixirFileScratch do
         IO.puts(:stderr, "Error reading file '#{filename}': #{inspect(reason)}")
         System.halt(1)
     end
+
+    case read_line_by_line(filename, &shout/1) do
+      {:ok, content} ->
+        IO.puts("File contents of #{filename}:")
+        IO.puts(content)
+
+      {:error, reason} ->
+        IO.puts(:stderr, "Error reading file '#{filename}': #{inspect(reason)}")
+        System.halt(1)
+    end
+
+    nil
   end
 
   defp print_help do
